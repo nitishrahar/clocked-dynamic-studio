@@ -10,7 +10,6 @@ app = Flask(__name__)
 CLOCKED_API_KEY = os.environ.get("CLOCKED_API_KEY", "")
 CLOCKED_BASE_URL = os.environ.get("CLOCKED_BASE_URL", "https://clocked.rezolve.ai/clocked")
 ALLOWED_FILL_TYPES = {"extract", "choice", "score", "yes_no", "multiselect", "generate"}
-ALLOWED_DECIDE_TYPES = {"bool", "noul", "choice", "score"}
 
 def call_clocked_endpoint(endpoint_name, payload, req_api_key=None):
     headers = {
@@ -116,37 +115,67 @@ def prepare_decide_payload(raw_data):
         for k, v in questions_raw.items():
             if isinstance(v, dict):
                 v_copy = dict(v)
-                qtype = str(v_copy.get("type", "bool")).lower()
-                if qtype not in ALLOWED_DECIDE_TYPES:
-                    qtype = "bool"
-                v_copy["type"] = qtype
-                if "question" not in v_copy and "description" in v_copy:
-                    v_copy["question"] = v_copy["description"]
+                v_copy["type"] = str(v_copy.get("type", "choice")).lower()
+                if "criteria" not in v_copy:
+                    q_text = v_copy.get("question") or v_copy.get("description") or str(k)
+                    v_copy["criteria"] = {"yes": q_text, "no": f"Not {q_text}"}
                 dec_questions[str(k)] = v_copy
             elif isinstance(v, str):
-                dec_questions[str(k)] = {"type": "bool", "question": v}
+                dec_questions[str(k)] = {
+                    "type": "choice",
+                    "question": v,
+                    "criteria": {"yes": v, "no": f"Not {v}"}
+                }
             else:
-                dec_questions[str(k)] = {"type": "bool", "question": str(v)}
+                dec_questions[str(k)] = {
+                    "type": "choice",
+                    "question": str(v),
+                    "criteria": {"yes": str(v), "no": f"Not {str(v)}"}
+                }
     elif isinstance(questions_raw, list):
         for idx, item in enumerate(questions_raw, 1):
             if isinstance(item, dict):
                 for k, v in item.items():
                     if isinstance(v, dict):
                         v_copy = dict(v)
-                        qtype = str(v_copy.get("type", "bool")).lower()
-                        if qtype not in ALLOWED_DECIDE_TYPES:
-                            qtype = "bool"
-                        v_copy["type"] = qtype
+                        v_copy["type"] = str(v_copy.get("type", "choice")).lower()
+                        if "criteria" not in v_copy:
+                            q_text = v_copy.get("question") or str(k)
+                            v_copy["criteria"] = {"yes": q_text, "no": f"Not {q_text}"}
                         dec_questions[str(k)] = v_copy
                     else:
-                        dec_questions[str(k)] = {"type": "bool", "question": str(v)}
+                        q_str = str(v)
+                        dec_questions[str(k)] = {
+                            "type": "choice",
+                            "question": q_str,
+                            "criteria": {"yes": q_str, "no": f"Not {q_str}"}
+                        }
             else:
-                dec_questions[f"q{idx}"] = {"type": "bool", "question": str(item)}
+                q_str = str(item)
+                dec_questions[f"q{idx}"] = {
+                    "type": "choice",
+                    "question": q_str,
+                    "criteria": {"yes": q_str, "no": f"Not {q_str}"}
+                }
 
     if not dec_questions:
         dec_questions = {
-            "is_eligible": {"type": "bool", "question": "Is the account eligible for instant credit line extension?"},
-            "requires_review": {"type": "bool", "question": "Is manual compliance review required?"}
+            "is_eligible": {
+                "type": "choice",
+                "question": "Is the account eligible for instant credit line extension?",
+                "criteria": {
+                    "yes": "Eligible for instant credit line extension",
+                    "no": "Not eligible for instant credit line extension"
+                }
+            },
+            "requires_review": {
+                "type": "choice",
+                "question": "Is manual compliance review required?",
+                "criteria": {
+                    "yes": "Manual compliance review required",
+                    "no": "No compliance review required"
+                }
+            }
         }
 
     return {"state": state, "questions": dec_questions}
@@ -269,7 +298,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 </div>
                 <div class="form-group">
                     <label>Questions (JSON Object):</label>
-                    <textarea id="decQuestions">{\n  "is_eligible": {\n    "type": "bool",\n    "question": "Is the account eligible for instant credit line extension?"\n  },\n  "requires_review": {\n    "type": "bool",\n    "question": "Is manual compliance review required?"\n  }\n}</textarea>
+                    <textarea id="decQuestions">{\n  "is_eligible": {\n    "type": "choice",\n    "question": "Is the account eligible for instant credit line extension?",\n    "criteria": {\n      "yes": "Eligible for instant credit line extension",\n      "no": "Not eligible for instant credit line extension"\n    }\n  },\n  "requires_review": {\n    "type": "choice",\n    "question": "Is manual compliance review required?",\n    "criteria": {\n      "yes": "Manual compliance review required",\n      "no": "No compliance review required"\n    }\n  }\n}</textarea>
                 </div>
                 <button class="run-btn" onclick="runSingle('decide')">Run /decide</button>
                 <div class="telemetry" id="telemetry-decide">Ms: - | Credits: - | Cost: -</div>
