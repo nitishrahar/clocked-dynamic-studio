@@ -10,6 +10,7 @@ app = Flask(__name__)
 CLOCKED_API_KEY = os.environ.get("CLOCKED_API_KEY", "")
 CLOCKED_BASE_URL = os.environ.get("CLOCKED_BASE_URL", "https://clocked.rezolve.ai/clocked")
 ALLOWED_FILL_TYPES = {"extract", "choice", "score", "yes_no", "multiselect", "generate"}
+ALLOWED_DECIDE_TYPES = {"bool", "noul", "choice", "score"}
 
 def call_clocked_endpoint(endpoint_name, payload, req_api_key=None):
     headers = {
@@ -114,26 +115,38 @@ def prepare_decide_payload(raw_data):
     if isinstance(questions_raw, dict):
         for k, v in questions_raw.items():
             if isinstance(v, dict):
-                dec_questions[str(k)] = v
+                v_copy = dict(v)
+                qtype = str(v_copy.get("type", "bool")).lower()
+                if qtype not in ALLOWED_DECIDE_TYPES:
+                    qtype = "bool"
+                v_copy["type"] = qtype
+                if "question" not in v_copy and "description" in v_copy:
+                    v_copy["question"] = v_copy["description"]
+                dec_questions[str(k)] = v_copy
             elif isinstance(v, str):
-                dec_questions[str(k)] = {"question": v}
+                dec_questions[str(k)] = {"type": "bool", "question": v}
             else:
-                dec_questions[str(k)] = {"question": str(v)}
+                dec_questions[str(k)] = {"type": "bool", "question": str(v)}
     elif isinstance(questions_raw, list):
         for idx, item in enumerate(questions_raw, 1):
             if isinstance(item, dict):
                 for k, v in item.items():
                     if isinstance(v, dict):
-                        dec_questions[str(k)] = v
+                        v_copy = dict(v)
+                        qtype = str(v_copy.get("type", "bool")).lower()
+                        if qtype not in ALLOWED_DECIDE_TYPES:
+                            qtype = "bool"
+                        v_copy["type"] = qtype
+                        dec_questions[str(k)] = v_copy
                     else:
-                        dec_questions[str(k)] = {"question": str(v)}
+                        dec_questions[str(k)] = {"type": "bool", "question": str(v)}
             else:
-                dec_questions[f"q{idx}"] = {"question": str(item)}
+                dec_questions[f"q{idx}"] = {"type": "bool", "question": str(item)}
 
     if not dec_questions:
         dec_questions = {
-            "is_eligible": {"question": "Is the account eligible for instant credit line extension?"},
-            "requires_review": {"question": "Is manual compliance review required?"}
+            "is_eligible": {"type": "bool", "question": "Is the account eligible for instant credit line extension?"},
+            "requires_review": {"type": "bool", "question": "Is manual compliance review required?"}
         }
 
     return {"state": state, "questions": dec_questions}
@@ -256,7 +269,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 </div>
                 <div class="form-group">
                     <label>Questions (JSON Object):</label>
-                    <textarea id="decQuestions">{\n  "is_eligible": {\n    "question": "Is the account eligible for instant credit line extension?"\n  },\n  "requires_review": {\n    "question": "Is manual compliance review required?"\n  }\n}</textarea>
+                    <textarea id="decQuestions">{\n  "is_eligible": {\n    "type": "bool",\n    "question": "Is the account eligible for instant credit line extension?"\n  },\n  "requires_review": {\n    "type": "bool",\n    "question": "Is manual compliance review required?"\n  }\n}</textarea>
                 </div>
                 <button class="run-btn" onclick="runSingle('decide')">Run /decide</button>
                 <div class="telemetry" id="telemetry-decide">Ms: - | Credits: - | Cost: -</div>
