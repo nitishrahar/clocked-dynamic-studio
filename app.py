@@ -112,19 +112,28 @@ def prepare_decide_payload(raw_data):
 
     dec_questions = {}
     if isinstance(questions_raw, dict):
-        dec_questions = questions_raw
+        for k, v in questions_raw.items():
+            if isinstance(v, dict):
+                dec_questions[str(k)] = v
+            elif isinstance(v, str):
+                dec_questions[str(k)] = {"question": v}
+            else:
+                dec_questions[str(k)] = {"question": str(v)}
     elif isinstance(questions_raw, list):
         for idx, item in enumerate(questions_raw, 1):
             if isinstance(item, dict):
                 for k, v in item.items():
-                    dec_questions[str(k)] = str(v)
+                    if isinstance(v, dict):
+                        dec_questions[str(k)] = v
+                    else:
+                        dec_questions[str(k)] = {"question": str(v)}
             else:
-                dec_questions[f"q{idx}"] = str(item)
+                dec_questions[f"q{idx}"] = {"question": str(item)}
 
     if not dec_questions:
         dec_questions = {
-            "is_eligible": "Is the account eligible for instant credit line extension?",
-            "requires_review": "Is manual compliance review required?"
+            "is_eligible": {"question": "Is the account eligible for instant credit line extension?"},
+            "requires_review": {"question": "Is manual compliance review required?"}
         }
 
     return {"state": state, "questions": dec_questions}
@@ -247,7 +256,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 </div>
                 <div class="form-group">
                     <label>Questions (JSON Object):</label>
-                    <textarea id="decQuestions">{\n  "is_eligible": "Is the account eligible for instant credit line extension?",\n  "requires_review": "Is manual compliance review required?"\n}</textarea>
+                    <textarea id="decQuestions">{\n  "is_eligible": {\n    "question": "Is the account eligible for instant credit line extension?"\n  },\n  "requires_review": {\n    "question": "Is manual compliance review required?"\n  }\n}</textarea>
                 </div>
                 <button class="run-btn" onclick="runSingle('decide')">Run /decide</button>
                 <div class="telemetry" id="telemetry-decide">Ms: - | Credits: - | Cost: -</div>
